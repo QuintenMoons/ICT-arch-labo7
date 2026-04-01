@@ -53,6 +53,74 @@ public class EvalVisitor : ExprParserBaseVisitor<BerekendeCel>
             }
             return new BerekendeCel(totaal.ToString(), CelType.INT);
         }
+
+        if (functieNaam.GetText() == "min")
+        {
+            if (expressiesKinderen.Count < 1 || resultatenKinderen.Count < 1)
+            {
+                return new BerekendeCel($"Fout: min-operatie vereist minstens 1 operand.", CelType.ERROR);
+            }
+            var expressieKind1 = expressiesKinderen[0];
+            var resultaatKind1 = resultatenKinderen[0];
+            if (resultaatKind1.CelType != CelType.INT)
+            {
+                return new BerekendeCel($"Fout: resultaat voor {expressieKind1} in {context.GetText()} is geen getal.", CelType.ERROR);
+            }
+            int totaal = Convert.ToInt32(resultaatKind1.VoorstellingWaarde);
+            for (int i = 1; i < resultatenKinderen.Count; i++)
+            {
+                var expressieKind = expressiesKinderen[i];
+                var resultaatKind = resultatenKinderen[i];
+                if (resultaatKind.CelType != CelType.INT)
+                {
+                    return new BerekendeCel($"Fout: resultaat voor {expressieKind} in {context.GetText()} is geen getal.", CelType.ERROR);
+                }
+                else
+                {
+                    totaal -= Convert.ToInt32(resultaatKind.VoorstellingWaarde);
+                }
+
+            }
+            return new BerekendeCel(totaal.ToString(), CelType.INT);
+        }
+
+        if (functieNaam.GetText() == "concat")
+        {
+            string totaal = "";
+            for (int i = 0; i < resultatenKinderen.Count; i++)
+            {
+                var expressieKind = expressiesKinderen[i];
+                var resultaatKind = resultatenKinderen[i];
+                if (resultaatKind.CelType != CelType.STRING)
+                {
+                    return new BerekendeCel($"Fout: resultaat voor {expressieKind} in {context.GetText()} is geen string.", CelType.ERROR);
+                }
+                else
+                {
+                    totaal += resultaatKind.VoorstellingWaarde;
+                }
+
+            }
+            return new BerekendeCel(totaal.ToString(), CelType.STRING);
+        }
+
+        if (functieNaam.GetText() == "upperCase")
+        {
+            if (resultatenKinderen.Count != 1)
+            {
+                return new BerekendeCel($"Fout: upperCase verwacht exact 1 argument, gekregen: {resultatenKinderen.Count}", CelType.ERROR);
+            }
+
+            var resultaatKind = resultatenKinderen[0];
+            if (resultaatKind.CelType != CelType.STRING)
+            {
+                return new BerekendeCel($"Fout: resultaat voor {expressiesKinderen[0]} is geen string.", CelType.ERROR);
+            }
+
+            string hoofdletters = resultaatKind.VoorstellingWaarde.ToUpper();
+    
+            return new BerekendeCel(hoofdletters, CelType.STRING);
+        }
         return new BerekendeCel($"Kan {context.GetText()} niet uitrekenen!", CelType.ERROR);
     }
 
