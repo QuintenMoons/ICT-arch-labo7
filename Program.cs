@@ -1,13 +1,18 @@
 using Antlr4.Runtime;
+using PluginContracts;
 
 namespace LaboOefeningen
 {
     public class TextCellUitgebreid
     {
+
+        private static List<IPlugin>? _geladenPlugins;
         public static BerekendeCel BerekenOntbrekendeCelRechtstreeks(string formule, BerekendeCel[,] berekendRooster)
         {
             var expr = stringToExprParser(formule).expr();
-            var evalVisitor = new EvalVisitor(berekendRooster); // TODO: hier lijst met plugins doorgeven
+    
+            // Gebruik de lijst die door de loader is gevuld
+            var evalVisitor = new EvalVisitor(berekendRooster, _geladenPlugins ?? new List<IPlugin>()); 
             return evalVisitor.VisitExpr(expr);
         }
 
@@ -130,6 +135,9 @@ namespace LaboOefeningen
 
         public static void BerekenOntbrekendeWaardenEenKeer(string[,] rooster, BerekendeCel[,] berekendRooster)
         {
+            // Voeg ?? new List<IPlugin>() toe aan het einde van de argumenten
+            var evalVisitor = new EvalVisitor(berekendRooster, _geladenPlugins ?? new List<IPlugin>());
+
             for (int rij = 0; rij < rooster.GetLength(0); rij++)
             {
                 for (int kolom = 0; kolom < rooster.GetLength(1); kolom++)
@@ -192,6 +200,9 @@ namespace LaboOefeningen
 
         public static void Main()
         {
+            string pluginPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins");
+            _geladenPlugins = PluginLoader.LoadPlugins(pluginPath);
+
             Console.WriteLine("Hoe veel rijen telt je spreadsheet?");
             int aantalRijen = Convert.ToInt32(Console.ReadLine());
             Console.WriteLine("Hoe veel kolommen telt je spreadsheet?");

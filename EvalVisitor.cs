@@ -1,15 +1,18 @@
 using System.Text.RegularExpressions;
 using Antlr4.Runtime.Misc;
+using PluginContracts;
 
 public class EvalVisitor : ExprParserBaseVisitor<BerekendeCel>
 {
 
     private BerekendeCel[,] berekendRooster;
+    private List<IPlugin> plugins;
     // TODO hier een lijst of andere datastructuur met ingeladen extensies bijhouden
 
-    public EvalVisitor(BerekendeCel[,] berekendRooster)
+    public EvalVisitor(BerekendeCel[,] berekendRooster, List<IPlugin> plugins)
     {
         this.berekendRooster = berekendRooster;
+        this.plugins = plugins;
         // TODO: hier lijst van plugins voorzien als extra parameter en bijhouden
     }
 
@@ -17,111 +20,32 @@ public class EvalVisitor : ExprParserBaseVisitor<BerekendeCel>
     {
         var expressiesKinderen = new List<string>();
         var resultatenKinderen = new List<BerekendeCel>();
-        foreach (var arg in context.arglist().children)
-        {
-            if (arg.GetText() != ",")
-            {
 
-                BerekendeCel resultaatKind = this.Visit(arg);
-                if (resultaatKind is null)
-                {
-                    return new BerekendeCel($"null als resultaat voor argument {arg.GetText()}", CelType.ERROR);
-                }
-                expressiesKinderen.Add(arg.GetText());
-                resultatenKinderen.Add(resultaatKind);
-            }
-        }
-        var functieNaam = context.ID();
-        // TODO: hier moet je met allerlei functies kunnen omgaan
-        // begin door plus hier te verwijderen en in een plugin te plaatsen
-        if (functieNaam.GetText() == "plus")
+        // 1. Evalueer alle argumenten van de functie
+        foreach (var arg in context.arglist().expr()) // Gebruik .expr() voor directe toegang
         {
-            int totaal = 0;
-            for (int i = 0; i < resultatenKinderen.Count; i++)
+            BerekendeCel resultaatKind = this.Visit(arg);
+            if (resultaatKind is null)
             {
-                var expressieKind = expressiesKinderen[i];
-                var resultaatKind = resultatenKinderen[i];
-                if (resultaatKind.CelType != CelType.INT)
-                {
-                    return new BerekendeCel($"Fout: resultaat voor {expressieKind} in {context.GetText()} is geen getal.", CelType.ERROR);
-                }
-                else
-                {
-                    totaal += Convert.ToInt32(resultaatKind.VoorstellingWaarde);
-                }
-
+                return new BerekendeCel($"null als resultaat voor argument {arg.GetText()}", CelType.ERROR);
             }
-            return new BerekendeCel(totaal.ToString(), CelType.INT);
+            expressiesKinderen.Add(arg.GetText());
+            resultatenKinderen.Add(resultaatKind);
         }
 
-        if (functieNaam.GetText() == "min")
-        {
-            if (expressiesKinderen.Count < 1 || resultatenKinderen.Count < 1)
-            {
-                return new BerekendeCel($"Fout: min-operatie vereist minstens 1 operand.", CelType.ERROR);
-            }
-            var expressieKind1 = expressiesKinderen[0];
-            var resultaatKind1 = resultatenKinderen[0];
-            if (resultaatKind1.CelType != CelType.INT)
-            {
-                return new BerekendeCel($"Fout: resultaat voor {expressieKind1} in {context.GetText()} is geen getal.", CelType.ERROR);
-            }
-            int totaal = Convert.ToInt32(resultaatKind1.VoorstellingWaarde);
-            for (int i = 1; i < resultatenKinderen.Count; i++)
-            {
-                var expressieKind = expressiesKinderen[i];
-                var resultaatKind = resultatenKinderen[i];
-                if (resultaatKind.CelType != CelType.INT)
-                {
-                    return new BerekendeCel($"Fout: resultaat voor {expressieKind} in {context.GetText()} is geen getal.", CelType.ERROR);
-                }
-                else
-                {
-                    totaal -= Convert.ToInt32(resultaatKind.VoorstellingWaarde);
-                }
+        // 2. Haal de functienaam op
+        var functieNaam = context.ID().GetText();
 
-            }
-            return new BerekendeCel(totaal.ToString(), CelType.INT);
-        }
-
-        if (functieNaam.GetText() == "concat")
-        {
-            string totaal = "";
-            for (int i = 0; i < resultatenKinderen.Count; i++)
-            {
-                var expressieKind = expressiesKinderen[i];
-                var resultaatKind = resultatenKinderen[i];
-                if (resultaatKind.CelType != CelType.STRING)
-                {
-                    return new BerekendeCel($"Fout: resultaat voor {expressieKind} in {context.GetText()} is geen string.", CelType.ERROR);
-                }
-                else
-                {
-                    totaal += resultaatKind.VoorstellingWaarde;
-                }
-
-            }
-            return new BerekendeCel(totaal.ToString(), CelType.STRING);
-        }
-
-        if (functieNaam.GetText() == "upperCase")
-        {
-            if (resultatenKinderen.Count != 1)
-            {
-                return new BerekendeCel($"Fout: upperCase verwacht exact 1 argument, gekregen: {resultatenKinderen.Count}", CelType.ERROR);
-            }
-
-            var resultaatKind = resultatenKinderen[0];
-            if (resultaatKind.CelType != CelType.STRING)
-            {
-                return new BerekendeCel($"Fout: resultaat voor {expressiesKinderen[0]} is geen string.", CelType.ERROR);
-            }
-
-            string hoofdletters = resultaatKind.VoorstellingWaarde.ToUpper();
+        // 3. Zoek een plugin die deze naam ondersteunt
+        var plugin = plugins.FirstOrDefault(p => p.Name.Equals(functieNaam, StringComparison.OrdinalIgnoreCase));
     
-            return new BerekendeCel(hoofdletters, CelType.STRING);
+        if (plugin != null)
+        {
+            // Delegeer de berekening naar de plugin
+            return plugin.Execute(expressiesKinderen, resultatenKinderen);
         }
-        return new BerekendeCel($"Kan {context.GetText()} niet uitrekenen!", CelType.ERROR);
+
+        return new BerekendeCel($"Functie '{functieNaam}' niet gevonden!", CelType.ERROR);
     }
 
     public override BerekendeCel VisitPlainint([NotNull] ExprParser.PlainintContext context)
